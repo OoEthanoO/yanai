@@ -1,0 +1,47 @@
+# Local credentials and deployment configuration
+.secrets/
+.env
+.env.*
+!.env.example
+*.dpapi
+*.pem
+*.key
+*.pfx
+*.p12
+first-login.*
+verification-token.txt
+llama-api-key.txt
+nvidia-api-key.*
+webui.json
+vercel-ddns*.json
+
+# User data, logs, downloads, and installed runtimes
+data/
+logs/
+models/
+bin/
+runtime/
+cache/
+.venv/
+venv/
+*.gguf
+*.partial
+*.log
+*.log.*
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.zip
+*.bak
+*.bak-*
+*.yanai-backup-*
+__pycache__/
+*.py[cod]
+
+# Local editor and agent files
+.vscode/
+.idea/
+.claude/
+.codex/

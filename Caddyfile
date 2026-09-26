@@ -1,0 +1,18 @@
+ai.ethanyanxu.com {
+    encode zstd gzip
+    request_body {
+        max_size 30MB
+    }
+    reverse_proxy 127.0.0.1:8082 {
+        flush_interval -1
+        transport http {
+            response_header_timeout 600s
+        }
+    }
+    log {
+        output file C:/AI/yanai/logs/access.log {
+            roll_size 10MB
+            roll_keep 5
+        }
+    }
+}
