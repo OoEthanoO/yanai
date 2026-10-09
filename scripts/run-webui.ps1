@@ -75,6 +75,10 @@ $environment = @{
     # Only offer the configured model (NVIDIA's endpoint lists dozens).
     OPENAI_API_CONFIGS = '{"0":{"model_ids":["' + [string]$config.DefaultModel + '"]}}'
     DEFAULT_MODELS = [string]$config.DefaultModel
+    # Native-mode WebUI injects thousands of tokens of built-in tool schemas into UI chats.
+    # Plain chat and full-context attachments do not need those automatic tools.
+    DEFAULT_MODEL_METADATA = '{"capabilities":{"builtin_tools":false,"vision":true,"file_context":true}}'
+    ENABLE_CONTEXT_COMPACTION = 'false'
     ENABLE_DIRECT_CONNECTIONS = 'false'
     OFFLINE_MODE = 'true'
     HF_HUB_OFFLINE = '1'
@@ -95,9 +99,13 @@ $environment = @{
     ENABLE_CODE_EXECUTION = 'false'
     ENABLE_CODE_INTERPRETER = 'false'
     ENABLE_EVALUATION_ARENA_MODELS = 'false'
+    # One generation slot: automatic titles can occupy it before the next user message.
+    ENABLE_TITLE_GENERATION = 'false'
     ENABLE_FOLLOW_UP_GENERATION = 'false'
     ENABLE_TAGS_GENERATION = 'false'
     ENABLE_AUTOCOMPLETE_GENERATION = 'false'
+    # Forward each generated delta immediately, including the first reasoning token.
+    CHAT_RESPONSE_STREAM_DELTA_CHUNK_SIZE = '1'
     USER_PERMISSIONS_CHAT_STT = 'false'
     USER_PERMISSIONS_CHAT_TTS = 'false'
     USER_PERMISSIONS_CHAT_CALL = 'false'
@@ -125,7 +133,16 @@ $environment = @{
 $environment['WEBUI_BANNERS'] = '[]'
 if ($remoteApi) {
     # Chats leave this server when a hosted API is used, so say so on every chat page (EN / zh-CN).
-    $environment['WEBUI_BANNERS'] = '[{"id":"hosted-model-notice","type":"info","title":"","content":"Chats on this site are processed by the NVIDIA cloud service (Kimi K3). NVIDIA may log them and use them to improve its AI models, so please do not share sensitive personal information. \u672c\u7ad9\u7684\u5bf9\u8bdd\u7531 NVIDIA \u4e91\u670d\u52a1\uff08Kimi K3\uff09\u5904\u7406\u3002NVIDIA \u53ef\u80fd\u4f1a\u8bb0\u5f55\u8fd9\u4e9b\u5bf9\u8bdd\u5e76\u7528\u4e8e\u6539\u8fdb\u5176 AI \u6a21\u578b\uff0c\u8bf7\u4e0d\u8981\u5206\u4eab\u654f\u611f\u7684\u4e2a\u4eba\u4fe1\u606f\u3002","dismissible":false,"timestamp":1790294400}]'
+    # ProviderName / ProviderMayTrain come from webui.json; unknown providers are assumed to train.
+    $provider = if ($config.PSObject.Properties['ProviderName'] -and $config.ProviderName) { [string]$config.ProviderName } else { $apiUri.Host }
+    $mayTrain = -not ($config.PSObject.Properties['ProviderMayTrain'] -and $config.ProviderMayTrain -eq $false)
+    $en = "Chats on this site are processed by $provider, not on this server. "
+    $en += if ($mayTrain) { "$provider may log them and use them to improve its AI models, so please do not share sensitive personal information." } else { 'Please do not share sensitive personal information.' }
+    $zh = [regex]::Unescape('\u672c\u7ad9\u7684\u5bf9\u8bdd\u7531 ') + $provider + [regex]::Unescape(' \u5904\u7406\uff0c\u800c\u4e0d\u662f\u5728\u672c\u670d\u52a1\u5668\u4e0a\u3002')
+    if ($mayTrain) { $zh += $provider + [regex]::Unescape(' \u53ef\u80fd\u4f1a\u8bb0\u5f55\u8fd9\u4e9b\u5bf9\u8bdd\u5e76\u7528\u4e8e\u6539\u8fdb\u5176 AI \u6a21\u578b\uff0c') }
+    $zh += [regex]::Unescape('\u8bf7\u4e0d\u8981\u5206\u4eab\u654f\u611f\u7684\u4e2a\u4eba\u4fe1\u606f\u3002')
+    $banner = @(@{ id = 'hosted-model-notice'; type = 'info'; title = ''; content = "$en $zh"; dismissible = $false; timestamp = 1790294400 })
+    $environment['WEBUI_BANNERS'] = ConvertTo-Json -InputObject $banner -Compress -Depth 4
 }
 foreach ($entry in $environment.GetEnumerator()) {
     [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, 'Process')

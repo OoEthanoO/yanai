@@ -8,7 +8,7 @@ param(
     [string]$UvPath,
     [string]$OpenAIBaseUrl = 'http://127.0.0.1:8081/v1',
     [string]$OpenAIApiKey,
-    [string]$DefaultModel = 'Qwen3.6-35B-A3B',
+    [string]$DefaultModel = 'Gemma-4-12B-Reasoning',
     [string]$WebuiUrl = 'https://ai.ethanyanxu.com',
     [ValidateRange(1024, 65535)][int]$Port = 8082,
     [switch]$Start

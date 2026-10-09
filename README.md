@@ -17,13 +17,23 @@ Browser -> Caddy (HTTPS) -> Open WebUI (127.0.0.1:8082)
 ```
 
 - Open WebUI is pinned to `0.11.3` in `requirements-webui.txt`.
-- The local model runner uses Qwen3.6-35B-A3B Q4_K_M with a Q8 vision projector,
-  a 65,536-token context, and one generation slot.
+- The local model runner uses Gemma 4 12B with thinking enabled, original BF16
+  weights and vision projector, an unquantized F16 attention cache, the full
+  262,144-token context window, and one generation slot. GPU offloading adapts to
+  available VRAM without reducing the configured context length.
+- CPU weights use llama.cpp's `mmap+mlock` loading mode (Windows `VirtualLock`) and
+  startup includes prompt/generation warm-up. `logs/model.pin.log` records warm-up
+  and lock warnings. Auxiliary prompt caches are bounded to reduce memory pressure.
+- Generated chat titles are disabled to avoid competing with user requests for
+  the single model slot. WebUI forwards every reasoning/content delta immediately.
+- Automatic built-in tool injection is disabled for ordinary chats: WebUI 0.11.3
+  otherwise adds about 3,500 prompt tokens even to a simple question. Image and
+  full-document inputs remain enabled, and automatic context compaction is off.
 - The downloader pins the GGUF revision, file size, and SHA-256 digest. The
   bundled llama.cpp download targets build `b10964` for Windows CUDA 12.4.
-- Hosted NVIDIA support includes a hidden-input key setup script and
+- Hosted providers (OpenRouter or NVIDIA) use a hidden-input key setup script and
   machine-bound DPAPI storage. The WebUI runner shows a bilingual cloud-processing
-  notice when a remote API is configured.
+  notice naming the provider when a remote API is configured.
 - Windows scheduled tasks start the services at boot and restart them on failure.
 - Caddy handles TLS and streaming. Both application ports bind to loopback.
 
@@ -68,8 +78,8 @@ For a new installation:
    Python environment, and `yanai-webui` task. It accepts Python 3.11 or 3.12, or
    installs managed Python through its pinned uv runtime.
 3. Copy the remaining scripts and `Caddyfile` into the installation root. For
-   local inference, create its `models` and `bin` directories, download and verify
-   the model and projector, then register the `yanai-model` task with
+   local inference, run `scripts/download-gemma.ps1` to create the download
+   directories and verify the model and projector, then register the `yanai-model` task with
    `scripts/install-model-task.ps1 -Start`.
 4. Start `yanai-webui` and run `scripts/provision-admin.py` with the installation's
    Python interpreter while the service is reachable only over loopback. It saves
@@ -79,20 +89,18 @@ For a new installation:
    reverse proxy. Use `install-domain.ps1` and `install-proxy.ps1` only after
    adapting their existing-server assumptions.
 
-The projector required by `run-model.ps1` can be fetched with the same downloader:
+Download the BF16 model and BF16 projector together (about 24 GB):
 
 ```powershell
-.\scripts\download-model.ps1 `
-    -FileName 'mmproj-Qwen3.6-35B-A3B-Q8_0.gguf' `
-    -Uri 'https://huggingface.co/ggml-org/Qwen3.6-35B-A3B-GGUF/resolve/baec3ebee244827cda0f4557eafa8b28f7545fa6/mmproj-Qwen3.6-35B-A3B-Q8_0.gguf' `
-    -Size 614194304 `
-    -Sha256 '904cbf8c8e876220066ab3bf676c7efa40f3da372276fdaf8b01d2fb2a37a51d'
+.\scripts\download-gemma.ps1
 ```
 
 For a hosted API, the protected `.secrets/webui.json` supplies `OpenAIBaseUrl`,
-`DefaultModel`, and the credential settings. `set-nvidia-key.ps1` only validates
-and saves the key; it does not switch the backend configuration or restart WebUI.
-Never commit this configuration or its encrypted credentials.
+`DefaultModel`, `OpenAIApiKeyFile`, and optionally `ProviderName` and
+`ProviderMayTrain` for the notice banner (unknown providers are described as
+possibly training on chats). `set-api-key.ps1 -Name openrouter|nvidia` only
+validates and saves the key; it does not switch the backend configuration or
+restart WebUI. Never commit this configuration or its encrypted credentials.
 
 ## Operations
 
@@ -101,17 +109,32 @@ Never commit this configuration or its encrypted credentials.
 | `Invoke-Home.ps1` | Run an encoded PowerShell command through the configured SSH alias. |
 | `install-webui.ps1` / `run-webui.ps1` | Install and run Open WebUI with account and privacy settings. |
 | `download-model.ps1` | Resume a model download and verify its size and hash. |
+| `download-gemma.ps1` | Download the pinned, unquantized Gemma model and projector. |
+| `inspect-gguf.py` | Verify metadata and tensor storage types without loading weights. |
+| `benchmark-stream.py` | Measure time to first thinking/answer text with synthetic prompts. |
 | `install-model-task.ps1` / `run-model.ps1` | Register and run the local model service. |
 | `provision-admin.py` | Bootstrap the first administrator over loopback. |
 | `install-proxy.ps1` | Validate and reload the existing Caddy config with the YanAI import. |
 | `install-domain.ps1` / `update-vercel-dns.ps1` | Register and maintain the server's DNS A record. |
 | `repin-ddns.ps1` | Interactively reconnect the updater after an external DNS record change. |
-| `set-nvidia-key.ps1` | Validate and encrypt an NVIDIA API key without printing it. |
+| `set-api-key.ps1` | Validate and encrypt an OpenRouter or NVIDIA API key without printing it. |
 
 Keep BOM-less PowerShell 5.1 scripts ASCII-only; bilingual strings use Unicode
 escapes. Parse-check changed scripts before restarting tasks. Regenerating the
 parent Caddy configuration can remove its YanAI import; rerun the proxy installer
 afterward if needed.
+
+To measure inference startup delay on the server without logging chat text:
+
+```powershell
+C:\AI\yanai\.venv\Scripts\python.exe C:\AI\yanai\scripts\benchmark-stream.py --no-cache
+```
+
+The benchmark reports first nonempty reasoning and answer deltas separately from
+HTTP headers. `--webui --ui-context --url https://ai.ethanyanxu.com/api/chat/completions` tests
+the public path using saved bootstrap credentials, if those credentials still
+exist and work. Long prompts must still be evaluated before the first output;
+enabling 256K context does not make a full-length prompt fast on an 8 GB GPU.
 
 This repository does not redistribute Open WebUI, llama.cpp, Caddy, or model
 weights. Their respective licenses and service terms still apply.

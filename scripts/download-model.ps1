@@ -1,10 +1,10 @@
 param(
     [string]$Root='C:\AI\yanai',
-    [string]$FileName='Qwen3.6-35B-A3B-Q4_K_M.gguf',
+    [string]$FileName='gemma-4-12B-it-BF16.gguf',
     # Pinned to a repository commit so the size and hash below stay valid.
-    [string]$Uri='https://huggingface.co/ggml-org/Qwen3.6-35B-A3B-GGUF/resolve/baec3ebee244827cda0f4557eafa8b28f7545fa6/Qwen3.6-35B-A3B-Q4_K_M.gguf',
-    [long]$Size=20419565568,
-    [string]$Sha256='671e47e0ec53c665d048b98c3ecbfd5236b5ca9c3e02ed19fc8f81f7b85140c7'
+    [string]$Uri='https://huggingface.co/ggml-org/gemma-4-12B-it-GGUF/resolve/e3e681731089efaa3f0917336944ac64752db8ba/gemma-4-12B-it-BF16.gguf',
+    [long]$Size=23832066176,
+    [string]$Sha256='2851bc5b1a24e766e861652c6e5f72105b3b1efd55be35642456f1171714c292'
 )
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
